@@ -57,6 +57,10 @@ module Twine
           raise Twine::Error.new 'You must run `gem install json` to read/write .xcstrings files.'
         end
 
+        if @options[:command] == "generate-all-localization-files"
+          raise Twine::Error.new "Use `generate-localization-file` command instead for #{format_name} format"
+        end
+
         strings_hash = {}
 
         @twine_file.sections.each do |section|
