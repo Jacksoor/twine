@@ -50,6 +50,8 @@ module Twine
       end
 
       # Override to generate one multi-language JSON file.
+      # Applies tag filtering and include semantics per language via OutputProcessor,
+      # and limits languages according to --lang when provided.
       def format_file(_lang)
         begin
           require 'json'
@@ -61,28 +63,36 @@ module Twine
           raise Twine::Error.new "Use `generate-localization-file` command instead for #{format_name} format"
         end
 
+        languages_to_emit = if @options[:languages] && @options[:languages].length > 0
+          @options[:languages]
+        else
+          @twine_file.language_codes
+        end
+
+        output_processor = Processors::OutputProcessor.new(@twine_file, @options)
         strings_hash = {}
 
-        @twine_file.sections.each do |section|
-          section.definitions.each do |definition|
-            language_locs = {}
-            @twine_file.language_codes.each do |language_code|
-              val = definition.translation_for_lang(language_code)
-              next unless val
-              language_locs[language_code] = {
+        languages_to_emit.each do |language_code|
+          processed = output_processor.process(language_code)
+
+          processed.sections.each do |section|
+            section.definitions.each do |definition|
+              value = definition.translation_for_lang(language_code)
+              next unless value
+
+              entry = strings_hash[definition.key] ||= { 'localizations' => {} }
+              # Prefer first non-empty comment encountered
+              if !entry.key?('comment') && definition.comment && !definition.comment.empty?
+                entry['comment'] = definition.comment
+              end
+
+              entry['localizations'][language_code] = {
                 'stringUnit' => {
                   'state' => 'translated',
-                  'value' => val
+                  'value' => value
                 }
               }
             end
-
-            next if language_locs.empty?
-
-            entry = { 'localizations' => language_locs }
-            entry['comment'] = definition.comment if definition.comment && !definition.comment.empty?
-
-            strings_hash[definition.key] = entry
           end
         end
 

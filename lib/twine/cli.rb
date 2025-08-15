@@ -129,7 +129,7 @@ module Twine
           :validate
         ],
         option_validation: Proc.new { |options|
-          if options[:languages] and options[:languages].length > 1
+          if options[:languages] and options[:languages].length > 1 and options[:format] != "apple-xcstrings"
             raise Twine::Error.new 'specify only a single language for the `generate-localization-file` command.'
           end
         },
