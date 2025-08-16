@@ -29,6 +29,7 @@ module Twine
           raise Twine::Error.new 'You must run `gem install json` to read/write .xcstrings files.'
         end
 
+        apply_language_filter = @options[:languages] && @options[:languages].length > 0
         data = JSON.parse(io.read.to_s)
 
         strings = data['strings'] || {}
@@ -42,6 +43,8 @@ module Twine
               end
 
             next if value.nil?
+            next if apply_language_filter && !@options[:languages].include?(lang)
+
             set_translation_for_key(key, lang, value)
             set_comment_for_key(key, comment) if comment
           end

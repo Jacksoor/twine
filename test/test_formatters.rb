@@ -442,10 +442,8 @@ end
 class TestAppleXcstringsFormatter < FormatterTest
   def setup
     super Twine::Formatters::AppleXcstrings
-  end
 
-  def test_read_simple
-    json = {
+    @example_json = {
       'version' => '1.0',
       'sourceLanguage' => 'en',
       'strings' => {
@@ -458,13 +456,25 @@ class TestAppleXcstringsFormatter < FormatterTest
         }
       }
     }
+  end
 
-    io = StringIO.new(JSON.pretty_generate(json))
+  def test_read_simple
+    io = StringIO.new(JSON.pretty_generate(@example_json))
     @formatter.read io, 'en'
 
     assert_equal 'Hello', @empty_twine_file.definitions_by_key['hello'].translations['en']
     assert_equal 'Bonjour', @empty_twine_file.definitions_by_key['hello'].translations['fr']
     assert_equal 'Greeting', @empty_twine_file.definitions_by_key['hello'].comment
+  end
+
+  def test_read_with_languages_option
+    io = StringIO.new(JSON.pretty_generate(@example_json))
+    @formatter.options[:languages] = ['fr']
+    @formatter.read io, 'en'
+    
+    assert_equal 'Bonjour', @empty_twine_file.definitions_by_key['hello'].translations['fr']
+    assert_equal 'Greeting', @empty_twine_file.definitions_by_key['hello'].comment
+    refute_includes @empty_twine_file.definitions_by_key['hello'].translations, 'en'
   end
 
   def test_format_file_basic_and_tags
