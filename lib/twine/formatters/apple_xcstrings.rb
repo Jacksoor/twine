@@ -83,7 +83,10 @@ module Twine
               value = definition.translation_for_lang(language_code)
               next unless value
 
-              entry = strings_hash[definition.key] ||= { 'localizations' => {} }
+              entry = strings_hash[definition.key] ||= {
+                'extractionState' => 'manual',
+                'localizations' => {} 
+              }
               # Prefer first non-empty comment encountered
               if !entry.key?('comment') && definition.comment && !definition.comment.empty?
                 entry['comment'] = definition.comment
