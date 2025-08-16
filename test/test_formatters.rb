@@ -1,4 +1,5 @@
 require 'twine_test'
+require 'json'
 
 class FormatterTest < TwineTest
   def setup(formatter_class)
@@ -435,6 +436,104 @@ class TestAppleFormatter < FormatterTest
 
   def test_format_value_with_trailing_space
     assert_equal 'value ', @formatter.format_value('value ')
+  end
+end
+
+class TestAppleXcstringsFormatter < FormatterTest
+  def setup
+    super Twine::Formatters::AppleXcstrings
+  end
+
+  def test_read_simple
+    json = {
+      'version' => '1.0',
+      'sourceLanguage' => 'en',
+      'strings' => {
+        'hello' => {
+          'comment' => 'Greeting',
+          'localizations' => {
+            'en' => { 'stringUnit' => { 'state' => 'translated', 'value' => 'Hello' } },
+            'fr' => { 'stringUnit' => { 'state' => 'translated', 'value' => 'Bonjour' } }
+          }
+        }
+      }
+    }
+
+    io = StringIO.new(JSON.pretty_generate(json))
+    @formatter.read io, 'en'
+
+    assert_equal 'Hello', @empty_twine_file.definitions_by_key['hello'].translations['en']
+    assert_equal 'Bonjour', @empty_twine_file.definitions_by_key['hello'].translations['fr']
+    assert_equal 'Greeting', @empty_twine_file.definitions_by_key['hello'].comment
+  end
+
+  def test_format_file_basic_and_tags
+    tw = build_twine_file 'en', 'fr' do
+      add_section 'Section 1' do
+        add_definition key_hello: { en: 'Hello', fr: 'Bonjour' }, comment: 'Greeting', tags: ['common']
+        add_definition key_bye: { en: 'Goodbye', fr: 'Au revoir' }, tags: ['other']
+      end
+      add_section 'Section 2' do
+        add_definition key_only_en: { en: 'Only EN' }, tags: ['common']
+      end
+    end
+
+    @formatter.twine_file = tw
+    @formatter.options = { developer_language: 'en', tags: [['common']], include: :translated }
+
+    output = @formatter.format_file('ignored')
+    refute_nil output
+    data = JSON.parse(output)
+
+    assert_equal 'en', data['sourceLanguage']
+    keys = data['strings'].keys
+    assert_includes keys, 'key_hello'
+    assert_includes keys, 'key_only_en'
+    refute_includes keys, 'key_bye'
+
+    hello = data['strings']['key_hello']
+    assert_equal 'Greeting', hello['comment']
+    assert_equal 'Hello', hello['localizations']['en']['stringUnit']['value']
+    assert_equal 'Bonjour', hello['localizations']['fr']['stringUnit']['value']
+
+    only_en = data['strings']['key_only_en']
+    assert_equal 'Only EN', only_en['localizations']['en']['stringUnit']['value']
+    refute_includes only_en['localizations'].keys, 'fr'
+  end
+
+  def test_respects_languages_option
+    tw = build_twine_file 'en', 'fr' do
+      add_section 'Section' do
+        add_definition key_hello: { en: 'Hello', fr: 'Bonjour' }
+      end
+    end
+
+    @formatter.twine_file = tw
+    @formatter.options = { developer_language: 'en', languages: ['fr'] }
+
+    data = JSON.parse(@formatter.format_file('ignored'))
+    locs = data['strings']['key_hello']['localizations']
+    assert_includes locs.keys, 'fr'
+    refute_includes locs.keys, 'en'
+  end
+
+  def test_rejects_generate_all_localization_files
+    tw = build_twine_file 'en' do
+      add_section 'Section' do
+        add_definition key_hello: 'Hello'
+      end
+    end
+    @formatter.twine_file = tw
+    @formatter.options = { command: 'generate-all-localization-files' }
+
+    assert_raises(Twine::Error) { @formatter.format_file('ignored') }
+  end
+
+  def test_determine_language_given_path
+    assert_equal 'en', @formatter.determine_language_given_path('foo/bar/Localizable.xcstrings')
+
+    @formatter.options[:developer_language] = 'de'
+    assert_equal 'de', @formatter.determine_language_given_path('anything')
   end
 end
 
